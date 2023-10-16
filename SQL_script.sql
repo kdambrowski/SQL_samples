@@ -1,82 +1,83 @@
--- a. Napisz zapytanie zwracające wszystkich pasażerów, którzy mieszkają w Warszawie albo w Krakowie oraz mieli 
--- wylot między 2022-01-01 a 2022-06-01.
-SELECT DISTINCT r.pasazer_id1 AS indywidualny_numer_pasazera,
-	p.imie,
-    p.nazwisko,
-	a.miejscowosc AS nazwa_miejscowosci_skad_pochodzi_pasazer
-FROM rezerwacja AS r
-	JOIN adres AS a ON r.pasazer_adres_id1 = a.id
-    JOIN lot ON r.lot_numer_lotu1 = lot.numer_lotu
-    JOIN pasazer AS p ON r.pasazer_id1 = p.id
-WHERE lot.data_wylotu BETWEEN '2022-01-01T00:00:00.000' AND '2022-06-01T23:59:59.999'
-    AND a.miejscowosc IN ('Warszawa', 'Kraków');
+-- Write a query to retrieve all passengers who live in Warsaw or Krakow and had a flight between 2022-01-01 and 2022-06-01.
+SELECT DISTINCT r.pasazer_id1 AS passenger_id,
+    p.first_name,
+    p.last_name,
+    a.city AS passenger_hometown
+FROM booking AS r
+    JOIN address AS a ON r.passenger_address_id1 = a.id
+    JOIN flight ON r.flight_flight_number1 = flight.flight_number
+    JOIN passenger AS p ON r.passenger_id1 = p.id
+WHERE flight.departure_date BETWEEN '2022-01-01T00:00:00.000' AND '2022-06-01T23:59:59.999'
+    AND a.city IN ('Warsaw', 'Krakow');
 
--- b. Napisz zapytanie zliczające ile lotów wykonał każdy z samolotów w okresie 2022-01-01 do dnia dzisiejszego. 
-SELECT s.id AS numer_samolotu, 
-	COUNT(s.id) AS liczba_lotow_od_2022_01_01_do_dzis 
-FROM lot
-	JOIN samolot as s ON s.id = lot.samolot_id1
-WHERE lot.data_wylotu BETWEEN '2022-01-01' AND NOW()
+-- Write a query to count the number of flights for each airplane from 2022-01-01 until today. 
+SELECT s.id AS airplane_number, 
+    COUNT(s.id) AS number_of_flights_from_2022_01_01_to_today 
+FROM flight
+    JOIN airplane AS s ON s.id = flight.airplane_id1
+WHERE flight.departure_date BETWEEN '2022-01-01' AND NOW()
 GROUP BY s.id;
 
--- c. Do powyższego zapytania, dodaj  informację, o liczbie pasażerów obsłużonych przez każdy samolot i jaki procent z 
--- tych pasażerów posiadał dodatkowy bagaż. (informacja o bagażu jest przechowywana w tabeli rezerwacja w polu bagaż. 
--- Jeśli jest pusta, to pasażer nie miał dodatkowego bagażu).
-SELECT s.id AS samolot_id, 
-	COUNT(DISTINCT lot.numer_lotu) AS liczba_lotow_od_2022_01_01_do_dzis, 
-	COUNT(r.pasazer_id1) AS liczba_pasazerow_obsluzonych_przez_samolot,
-	(COUNT(CASE WHEN r.bagaz <> 'pusta' THEN 1 END) / COUNT(r.pasazer_id1)) AS procent_pasaerow_z_dodatkowym_bagazem -- tu uzyto pusta bo nie zdefiniowano w zadaniu czy to jest wartosc typu varchar czy null
-FROM rezerwacja as r
-	JOIN lot ON r.lot_numer_lotu1 = lot.numer_lotu
-	JOIN samolot as s ON s.id = lot.samolot_id1
-	WHERE lot.data_wylotu BETWEEN '2022-01-01' AND NOW()
-	GROUP BY s.id;
+-- For the previous query, add information about the number of passengers served by each airplane and what
+-- a percentage of these passengers had additional baggage (baggage information is stored in the booking table
+-- in the baggage field. If it's empty, the passenger didn't have additional baggage).
+SELECT s.id AS airplane_id, 
+    COUNT(DISTINCT flight.flight_number) AS number_of_flights_from_2022_01_01_to_today, 
+    COUNT(booking.passenger_id1) AS number_of_passengers_served_by_airplane,
+    (COUNT(CASE WHEN booking.baggage IS NOT NULL THEN 1 END) / COUNT(booking.passenger_id1)) AS percentage_of_passengers_with_additional_baggage
+FROM booking
+    JOIN flight ON booking.flight_flight_number1 = flight.flight_number
+    JOIN airplane AS s ON s.id = flight.airplane_id1
+WHERE flight.departure_date BETWEEN '2022-01-01' AND NOW()
+GROUP BY s.id;
 
--- d. Napisz zapytanie zwracające dla każdego pasażera jego 3 ostatnie loty z podziałem na producenta samolotu.
-WITH ostatnie_loty AS (
-	SELECT 
-		ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY lot.data_wylotu DESC) AS nr_wiersza, 
-		p.id AS indywidualny_numer_pasazera,
-        p.imie,
-        p.nazwisko,
-		lot.data_wylotu,
-        s.producent AS producent_samolotu
-	FROM rezerwacja AS r 
-		JOIN pasazer AS p ON r.pasazer_id1 = p.id
-		JOIN lot ON r.lot_numer_lotu1 = lot.numer_lotu
-		JOIN samolot AS s ON lot.samolot_id1 = s.id
-		)
-SELECT indywidualny_numer_pasazera, imie, nazwisko, data_wylotu, producent_samolotu
-FROM ostatnie_loty AS ol
-WHERE ol.nr_wiersza <=3;
 
--- e. Napisz zapytanie zwracające informacje o liczbie pasażerów obsłużonych przez każdy samolot w każdym miesiącu
---  w okresie od 2022-01-01 do 2023-02-28. Dodatkowo dodaj sumę narastającą na liczbie obsłużonych pasażerów przez 
--- każdy z samolotów.
+-- Write a query to retrieve, for each passenger, their 3 most recent flights with a breakdown by airplane manufacturer.
+WITH recent_flights AS (
+    SELECT 
+        ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY flight.departure_date DESC) AS row_number, 
+        p.id AS passenger_id,
+        p.first_name,
+        p.last_name,
+        flight.departure_date,
+        airplane.manufacturer AS airplane_manufacturer
+    FROM booking AS b 
+        JOIN passenger AS p ON b.passenger_id1 = p.id
+        JOIN flight ON b.flight_flight_number1 = flight.flight_number
+        JOIN airplane ON flight.airplane_id1 = airplane.id
+)
+SELECT passenger_id, first_name, last_name, departure_date, airplane_manufacturer
+FROM recent_flights
+WHERE row_number < 4;
+
+
+-- Write a query to retrieve information about the number of passengers served by each airplane for 
+-- each month in the period from 2022-01-01 to 2023-02-28. Additionally, add the cumulative sum of passengers
+-- served by each airplane.
 WITH CTE AS (
 SELECT
-    s.id,
-    s.producent,
-    s.typ,
-    CONCAT(YEAR(lot.data_wylotu),'-',LPAD(MONTH(lot.data_wylotu), 2, 0)) AS miesiac,
-    COUNT(r.id) AS liczba_obsluzonych_pasazerow
+    airplane.id,
+    airplane.manufacturer,
+    airplane.type,
+    CONCAT(YEAR(flight.departure_date),'-',LPAD(MONTH(flight.departure_date), 2, 0)) AS month,
+    COUNT(booking.id) AS number_of_served_passengers
 FROM
-    samolot AS s
+    airplane
 JOIN
-    lot ON s.id = lot.samolot_id1
+    flight ON airplane.id = flight.airplane_id1
 JOIN
-    rezerwacja AS r ON r.lot_numer_lotu1 = lot.numer_lotu
+    booking ON booking.flight_flight_number1 = flight.flight_number
 WHERE
-   lot.data_wylotu BETWEEN '2022-01-01T00:00:00.000' AND '2023-02-28T23:59:59.999'
+   flight.departure_date BETWEEN '2022-01-01T00:00:00.000' AND '2023-02-28T23:59:59.999'
 GROUP BY
-    s.id,
-    s.producent,
-    s.typ,
-	CONCAT(YEAR(lot.data_wylotu),'-',LPAD(MONTH(lot.data_wylotu), 2, 0))
+    airplane.id,
+    airplane.manufacturer,
+    airplane.type,
+    CONCAT(YEAR(flight.departure_date),'-',LPAD(MONTH(flight.departure_date), 2, 0))
 )
 SELECT
     *,
-    SUM(liczba_obsluzonych_pasazerow) OVER (
-    PARTITION BY id ORDER BY miesiac) AS suma_narastajaca_pasazerow
+    SUM(number_of_served_passengers) OVER (
+    PARTITION BY id ORDER BY month) AS cumulative_passengers
 FROM
     CTE;
